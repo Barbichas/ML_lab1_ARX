@@ -14,14 +14,15 @@ import warnings #for the heavy cross validation optimization computations
 
 u_test_file =  "u_test.npy"
 u_train_file = "u_train.npy"
-output_train_file = "output_train.npy"
+y_train_file = "output_train.npy"
 
 
-X_test  = np.load(X_test_file)
-X_train = np.load(X_train_file)
+u_test  = np.load(X_test_file)
+u_train = np.load(X_train_file)
 y_train = np.load(y_train_file)
 
 ############    criar X_train com as janelas        ###############
+
 
 
 #### plotting the data  raw ###############
