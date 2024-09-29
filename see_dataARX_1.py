@@ -353,7 +353,7 @@ plt.title('Error histogram simple linear regression(non normalised)')
 plt.figure()
 
 
-
+olaaaa
 ####################       producing test prediction    #######################################
 y_test_prediction = prediction(X_test)
 plt.scatter(range(len(y_test_prediction)),y_test_prediction, color='blue',s = 1)
