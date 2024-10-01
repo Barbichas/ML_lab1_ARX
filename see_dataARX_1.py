@@ -86,10 +86,48 @@ if(X_train.shape[1] > 3 ):
     plt.scatter(X_train[:, 3], y_train, color='orange',s = 1)
 if(X_train.shape[1] > 4 ):
     plt.scatter(X_train[:, 4], y_train, color='purple',s = 1)
-plt.xlabel('X train without outliers')
-plt.ylabel('Y train without outliers')
+plt.xlabel('X train')
+plt.ylabel('Y train')
 plt.title('Training data(many dimensions overlaped)')
 plt.figure()
+
+x_train_transposta = X_train.T
+y_train_transposta = y_train.T
+
+
+###compute theta = (X^TX)^-1 X^TY #####
+theta = np.linalg.inv(x_train_transposta @ X_train) @ (x_train_transposta @ y_train)
+
+def gradient(cost_function):
+    f_prime = sp.diff(f, x)
+
+
+##### Convergence ###########
+def gradient(cost_function)
+    f_prime = sp.diff(f, x)
+
+# Parâmetros do algoritmo
+learning_rate = 0.1
+momentum = 0.9
+num_iterations = 100
+
+# Inicializaçao variáveis
+x = 10.0  # Ponto inicial
+velocity = 0.0  # Inicialização do momentum
+cost_history = []
+
+for i in range(num_iterations):
+    grad = gradient(x)
+    velocity = momentum * velocity - learning_rate * grad  # Atualização com momentum
+    x += velocity  # Atualizando x
+
+    cost = cost_function(x)
+    cost_history.append(cost)
+
+    # Condição de convergência
+    if abs(grad) < 1e-6:  # Pode ajustar o limite
+        print(f'Convergiu em {i} iterações.')
+        break
 
 ####       Normalize       #################################
 X_train_means = np.mean(X_train,axis = 0)    #Important for finale!
