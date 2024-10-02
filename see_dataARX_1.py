@@ -19,12 +19,12 @@ y_train_file = "output_train.npy"
 
 u_test  = np.load(u_test_file)
 u_train = np.load(u_train_file)
-y_train = np.load(y_train_file)
+y_train1 = np.load(y_train_file)
 
 
 #### plotting the data  raw ###############
 plt.plot(u_train ,label = "u_input",color='blue')
-plt.plot(y_train, label = "y_output",color='red')
+plt.plot(y_train1, label = "y_output",color='red')
 plt.xlabel('Sample index')
 plt.ylabel('Signal')
 plt.title('Training Data Raw')
@@ -33,7 +33,7 @@ plt.figure()
 
 ## frequency analysis suggests a low-pass filter  ##
 u_train_FFT = np.fft.fft(u_train)
-y_train_FFT = np.fft.fft(y_train)
+y_train_FFT = np.fft.fft(y_train1)
 plt.plot(u_train_FFT ,label = "Input Spectrum",color='blue')
 plt.plot(y_train_FFT, label = "Output Spectrum",color='red')
 plt.xlabel('Sample index')
@@ -44,19 +44,21 @@ plt.figure()
 
 
 #############################################################
-############    create X_train with regressors phi(k)        ###############
+############    Global variables                             ###############
 ###########     You may assume n < 10, m < 10, d < 10        ###############
+###########  best is n=9 , m=9 , d= 6
 #############################################################
 
-n = 8 #n>=0 , n of output points in buffer
-m = 10 #m>=0  ,n of input points in buffer minus 1
-d = 7 #d>=0  ,difference in indexes of last(most recent) output and input in buffer plus 1
-N = len(y_train) #total number of output points in traininig data set
+n = 5               #n>=0 , n of output points in buffer
+m = 1              #m>=0  ,n of input points in buffer minus 1
+d = 6               #d>=0  ,difference in indexes of last(most recent) output and input in buffer plus 1
+N = len(y_train1)   #total number of output points in traininig data set
 print("Number of data points is " + str(N))
+p = 0               #number of features for linear regression
 
 ##############################################################
 #############  Regressor function           ##################
-def regressor(k,output_vector,input_vector):
+def regressor(k,n,m,d,output_vector,input_vector):
 
     phi = []
     aux = output_vector[k-n:k]
@@ -67,16 +69,50 @@ def regressor(k,output_vector,input_vector):
     
     return phi
 
-p = max([n,m+d]) #number of features for linear regression
+def trim_for_regressor(n , m , d, out_y, in_u):
+    p = max([n,m+d]) #number of features for linear regression
+    X_train = np.array([regressor(k,n,m,d,out_y,in_u) for k in range(p,N)])
+    y_train = out_y[p:N]
 
+    return X_train , y_train , p
 
-X_train = np.array([regressor(k,y_train,u_train) for k in range(p,N)])
-y_train = y_train[p:N]
+###############################################################
+###### linear regression - minimize SSE           #############
+## beta = (XtX)^-1 Xt Y                           #############
+###############################################################
+def linear_regression(X,y):
+    XtX =np.matmul(np.transpose(X),X)
+    XtX_inv = np.linalg.inv(XtX)
+    beta = np.matmul(XtX_inv,np.matmul(np.transpose(X),y )) 
+    #print("Linear regression coefficients = " +str(beta))
+
+    y_prediction = np.matmul(X , beta)
+    SquaredErrors = (y - y_prediction )**2
+    SSE = np.sum(SquaredErrors)
+
+    r2 = 1- SSE/(np.sum(y**2))
+    #print("r2 with simple linear regression= " + str(r2))
+
+    return beta , r2
+
+#########  Function for checking model stability      #########
+def is_stable(ni , mi, di, beta):
+    #poles at the roots of the polynomial
+    # z^n + a1 z^(n-1) + a2 z^(n-2) +...+ an
+    coefs = [1]
+    if n >= 1:
+        coefs = coefs + [-1* k for k in beta[0:n] ]
+    poles = np.roots(coefs)
+    for k in poles:
+        if abs(k) >= 1:
+            return 0
+    return 1
+
+X_train , y_train , p = trim_for_regressor(n ,m ,d ,y_train1,u_train)
 
 print("y-> "+ str(y_train.shape))
 print("x-> "+ str(X_train.shape))
 
-print()
 plt.scatter(X_train[:, 0], y_train, color='blue',s = 1)
 if(X_train.shape[1] > 1 ):
     plt.scatter(X_train[:, 1], y_train, color='green',s = 1)
@@ -91,252 +127,46 @@ plt.ylabel('Y train')
 plt.title('Training data(many dimensions overlaped)')
 plt.figure()
 
-x_train_transposta = X_train.T
-y_train_transposta = y_train.T
 
 
-###compute theta = (X^TX)^-1 X^TY #####
-theta = np.linalg.inv(x_train_transposta @ X_train) @ (x_train_transposta @ y_train)
-
-def gradient(cost_function):
-    f_prime = sp.diff(f, x)
-
-
-##### Convergence ###########
-def gradient(cost_function)
-    f_prime = sp.diff(f, x)
-
-# Parâmetros do algoritmo
-learning_rate = 0.1
-momentum = 0.9
-num_iterations = 100
-
-# Inicializaçao variáveis
-x = 10.0  # Ponto inicial
-velocity = 0.0  # Inicialização do momentum
-cost_history = []
-
-for i in range(num_iterations):
-    grad = gradient(x)
-    velocity = momentum * velocity - learning_rate * grad  # Atualização com momentum
-    x += velocity  # Atualizando x
-
-    cost = cost_function(x)
-    cost_history.append(cost)
-
-    # Condição de convergência
-    if abs(grad) < 1e-6:  # Pode ajustar o limite
-        print(f'Convergiu em {i} iterações.')
-        break
-
-####       Normalize       #################################
-X_train_means = np.mean(X_train,axis = 0)    #Important for finale!
-X_train_centered = X_train - X_train_means
-X_train_centered_maxs = np.max(np.abs(X_train_centered), axis=0)  # Important for finale!
-X_train_normalised = X_train_centered / X_train_centered_maxs
-X_train_normalised_std_devs = np.std(X_train_centered, axis=0 ) #Important for finale!
-X_train_normalised = X_train_normalised/ X_train_normalised_std_devs
-
-y_train_mean = np.mean(y_train)          #Important for finale!
-y_train_centered = y_train - y_train_mean
-y_train_centered_max = np.max(y_train_centered)
-y_train_normalised = y_train_centered / y_train_centered_max
-y_train_normalised_std_dev = np.std(y_train_centered) #use standard deviation to normalise gaussian noise
-y_train_normalised = y_train_normalised/ y_train_normalised_std_dev
-
-#### plotting the data  normalised ###############
-plt.scatter(X_train_normalised[:, 0], y_train_normalised, color='blue',s = 1)
-if(X_train.shape[1] > 1 ):
-    plt.scatter(X_train_normalised[:, 1], y_train_normalised, color='green',s = 1)
-if(X_train.shape[1] > 2 ):
-    plt.scatter(X_train_normalised[:, 2], y_train_normalised, color='red',s = 1)
-if(X_train.shape[1] > 3 ):
-    plt.scatter(X_train_normalised[:, 3], y_train_normalised, color='orange',s = 1)
-if(X_train.shape[1] > 4 ):
-    plt.scatter(X_train_normalised[:, 4], y_train_normalised, color='purple',s = 1)
-plt.xlabel('X train normalised')
-plt.ylabel('Y train normalised')
-plt.title('Training Data Centered and Normalised')
-plt.figure()
-
-###############################################################
-###### linear regression - minimize SSE           #############
-## beta = (XtX)^-1 Xt Y                           #############
-###############################################################
-
-XtX =np.matmul(np.transpose(X_train_normalised),X_train_normalised)
-XtX_inv = np.linalg.inv(XtX)
-beta = np.matmul(XtX_inv,np.matmul(np.transpose(X_train_normalised),y_train_normalised )) 
-print("Linear regression coefficients = " +str(beta))
-
-y_train_normalised_prediction = np.matmul(X_train_normalised , beta)
-SquaredErrors = (y_train_normalised - y_train_normalised_prediction )**2
-SSE = np.sum(SquaredErrors)
-
-r2 = 1- SSE/(np.sum(y_train_normalised**2))
-print("r2 with simple linear regression= " + str(r2))
-
-#### plotting the predictions normalised still ###############
-plt.scatter(y_train_normalised, y_train_normalised_prediction, color='blue',s = 1)
-plt.xlabel('Y_train')
-plt.ylabel('Y_train_predicted')
-plt.title('Training Data Prediction')
-plt.figure()
+#########  Finding parameters n ,m and d ######################
+if (0):
+    best_r2 = 0
+    for ni in range(1,10):
+        for mi in range(1,10):
+            for di in range(1,10):
+                print("Checking parameters-> n=" + str(ni) + " ,m= " + str(mi) + " ,d=" + str(di))
+                Xi , yi , pi = trim_for_regressor(ni , mi, di ,y_train1, u_train)
+                betai , r2i = linear_regression(Xi,yi)
+                r2i = r2i * is_stable(ni , mi ,di , betai)
+                if (r2i == 0):
+                    print("Unstable!! -> n=" + str(ni) + " ,m= " + str(mi) + " ,d=" + str(di) + "!!!!!!!!!")
+                if ( r2i > best_r2 ):
+                    best_r2 = r2i
+                    n = ni
+                    m = mi
+                    d = di
+                    p = pi
+                    beta = betai
+    print("Best parameters-> n=" + str(n) + " ,m= " + str(m) + " ,d=" + str(d))
+    print("Simple linear regression r2= " +str(best_r2))
 
 
-### plotting error histogram for normalised predicition
-Errors = y_train_normalised - y_train_normalised_prediction
-counts, bin_edges = np.histogram(Errors, bins=100)
-bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2  # Calculate bin centers
-plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], color='blue')
-plt.xlabel('Error size')
-plt.ylabel('Error count')
-plt.title('Error histogram simple linear regression (normalised)')
-plt.figure()
-
-'''
-##########################################################
-##########           Ridge            ####################
-##########################################################
-rdg_alphas = []
-rdg_scores = []
-rdg_betas  = []
-alpha_values = np.logspace(-4,0.5,100)
-for a in alpha_values:
-    rdg_alphas.append(a)
-    rdg = Ridge(alpha = a)
-    rdg.fit(X_train_normalised,y_train_normalised)
-    rdg_scores.append( rdg.score(X_train_normalised,y_train_normalised) )
-    rdg_betas.append(rdg.coef_)
-
-plt.scatter(rdg_alphas,[b[0] for b in rdg_betas], color='blue',s = 1)
-plt.scatter(rdg_alphas,[b[1] for b in rdg_betas], color='red',s = 1)
-plt.scatter(rdg_alphas,[b[2] for b in rdg_betas], color='green',s = 1)
-plt.scatter(rdg_alphas,[b[3] for b in rdg_betas], color='orange', s = 1)
-plt.scatter(rdg_alphas,[b[4] for b in rdg_betas], color='purple',s = 1)
-plt.xlabel('ridge_alphas')
-plt.ylabel('Ridge coefficients')
-plt.title('Ridge coefficients')
-plt.xscale("symlog")
-plt.yscale("symlog")
-plt.figure()
-
-# encontrar o melhor ridge com cross validation alpha
-#o melhor k é 19
-find_best_partition_k = 0
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")  # Suppress all warnings
-    if find_best_partition_k == 1:
-        # ver qual o numero otimo de particoes no crossvalidation(deu sempre o mesmo valor)
-        print("Lengthy calculations for ridge.")
-        ks_rdg_cv = np.linspace(2,30,29)
-        best_r2s_rdg_cv = []
-        for k in ks_rdg_cv:
-            if k % 5 == 0:
-                print("Evaluating k = " + str(k))
-            rdg = Ridge()
-            rdg_cv = GridSearchCV(rdg, param_grid={'alpha': alpha_values}, cv= int(k), scoring='r2')
-            rdg_cv.fit(X_train_normalised, y_train_normalised)
-            best_r2s_rdg_cv.append(rdg_cv.best_score_)
-            k += 1
-        plt.plot(ks_rdg_cv, best_r2s_rdg_cv, color='blue')
-        plt.xlabel('Number of data partitions')
-        plt.ylabel('Best r² found for various ridge alphas')
-        plt.title('Finding best number of partitions for ridge cross validation')
-        plt.figure()
-
-#final ridge model
-rdg = Ridge()
-best_rdg = rdg
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")  # Suppress all warnings
-    print("Finding best ridge")
-    rdg_cv = GridSearchCV(rdg, param_grid={'alpha': alpha_values}, cv= 19, scoring='r2')
-    rdg_cv.fit(X_train_normalised, y_train_normalised)
-    best_rdg = rdg_cv.best_estimator_
 
 
-##########################################################
-##########           Lasso            ####################
-##########################################################
-#see how the coefficients evolve
-lss_alphas = []
-lss_scores = []
-lss_betas  = []
-alpha_values = np.logspace(-10,-2,50)
-for a in alpha_values:
-    lss_alphas.append(a)
-    lss = Lasso(alpha = a)
-    lss.fit(X_train_normalised,y_train_normalised)
-    lss_scores.append( lss.score(X_train_normalised,y_train_normalised) )
-    lss_betas.append(abs(lss.coef_))
-
-plt.scatter(lss_alphas,[b[0] for b in lss_betas], color='blue',s = 1)
-plt.scatter(lss_alphas,[b[1] for b in lss_betas], color='red',s = 1)
-plt.scatter(lss_alphas,[b[2] for b in lss_betas], color='green',s = 1)  #green is the weakest link
-plt.scatter(lss_alphas,[b[3] for b in lss_betas], color='orange', s = 1)
-plt.scatter(lss_alphas,[b[4] for b in lss_betas], color='purple',s = 1)
-plt.xscale("log")
-plt.yscale("log")
-plt.xlabel('lasso_alphas')
-plt.ylabel('Lasso coeficients')
-plt.title('Lasso coefficients')
-plt.figure()
-
-#best is k = 18
-find_best_partition_k = 0
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")  # Suppress all warnings
-    if find_best_partition_k == 1:
-        # checking the best number of partitions, k
-        print("Lengthy calculations for lasso.")
-        ks_lss_cv = np.linspace(2,30,29)
-        best_r2s_lss_cv = []
-        for k in ks_lss_cv:
-            if k % 5 == 0:
-                print("Evaluating k = " + str(k))
-            lss = Lasso()
-            lss_cv = GridSearchCV(lss, param_grid={'alpha': alpha_values}, cv= int(k), scoring='r2')
-            lss_cv.fit(X_train_normalised, y_train_normalised)
-            best_r2s_lss_cv.append(lss_cv.best_score_)
-            k += 1
-        plt.plot(ks_lss_cv, best_r2s_lss_cv, color='blue')
-        plt.xlabel('Number of data partitions')
-        plt.ylabel('Best r² found for various lasso alphas')
-        plt.title('Finding best number of partitions for lasso cross validation')
-        plt.figure()
-
-#final lasso model
-lss = Lasso()
-best_lss = lss
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")  # Suppress all warnings
-    print("Finding best lasso.")
-    lss_cv = GridSearchCV(lss, param_grid={'alpha': alpha_values}, cv= 18, scoring='r2')
-    lss_cv.fit(X_train_normalised, y_train_normalised)
-    best_lss = lss_cv.best_estimator_
-'''
+X_train , y_train , p = trim_for_regressor(n ,m ,d ,y_train1,u_train)
+beta , r2 = linear_regression(X_train, y_train)
 
 #############    function to get predictions(non normalized)  #############################
 
 def prediction(X):
-    #normalise X
-    X = X - X_train_means
-    X = X / X_train_centered_maxs
-    X = X/ X_train_normalised_std_devs
+
     #apply simple linear model
     y = np.matmul(X,beta)
-    #apply ridge regression model(cross validated)
-    #y = best_rdg.predict(X)
-    #apply lasso regression model(cross validated)
-    #y = best_lss.predict(X)
-    #denormalise y
-    y = y * y_train_normalised_std_dev
-    y = y * y_train_centered_max
-    y = y + y_train_mean
+
     return y
 
-#############    plotting prediction(same model will be used for test data)  ##############################
+#############    plotting training prediction(same model will be used for test data)  ##############################
 y_train_prediction = prediction(X_train)
 r2_train = 1- (np.sum((y_train_prediction-y_train)**2))/(np.sum((y_train-np.mean(y_train))**2))
 print("r2 for train is " +str(r2_train))
@@ -346,17 +176,17 @@ plt.ylabel('Y_train_predicted(non normalised)')
 plt.title('Training Data Prediction')
 plt.figure()
 
-### plotting error histogram non normalised
+### plotting error on training histogram non normalised
 Errors = y_train - y_train_prediction
 counts, bin_edges = np.histogram(Errors, bins=100)
 bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2  # Calculate bin centers
 plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], color='blue')
 plt.xlabel('Error size')
 plt.ylabel('Error count')
-plt.title('Error histogram best linear regression(non normalised)')
+plt.title('Error histogram linear regression on training dataset')
 plt.figure()
 
-###################        producing prediction iterating instead of matrix operations   ###########
+###################        producing prediction iterating with regressor   ###########
 # y(k) = phi(k) * beta
 y_test_prediction = []
 k = 0
@@ -365,7 +195,7 @@ while (k < p):
     k+=1
 
 while (k<len(u_test)):
-    reg = regressor(k,y_test_prediction,u_test)
+    reg = regressor(k,n,m,d,y_test_prediction,u_test)
     #print("regressor(" + str(k) + ")= " + str(reg)) 
     aux = np.dot(reg, beta )
     y_test_prediction.append(aux)
@@ -389,7 +219,6 @@ plt.xlabel('Sample index')
 plt.ylabel('Signal')
 plt.title('Testing Data Predicted Spectrum')
 plt.legend()
-plt.figure()
 
 
 plt.show()
