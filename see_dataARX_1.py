@@ -6,9 +6,11 @@ import matplotlib.pyplot as plt
 import numpy as np   #manipulating numpy arrays
 import pandas as pd  #statistics fucntions
 import seaborn as sns
+from sklearn.model_selection import cross_val_score  #cross validation
+from sklearn.linear_model import LinearRegression
 from sklearn.linear_model import Ridge    #ridge regression
 from sklearn.linear_model import Lasso    #lasso regression
-from sklearn.model_selection import GridSearchCV, KFold   #cross validation
+from sklearn.model_selection import GridSearchCV, KFold   #cross validation search
 import warnings #for the heavy cross validation optimization computations
         
 
@@ -49,8 +51,8 @@ plt.figure()
 ###########  best is n=9 , m=9 , d= 6
 #############################################################
 
-n = 5               #n>=0 , n of output points in buffer
-m = 1              #m>=0  ,n of input points in buffer minus 1
+n = 9               #n>=0 , n of output points in buffer
+m = 9              #m>=0  ,n of input points in buffer minus 1
 d = 6               #d>=0  ,difference in indexes of last(most recent) output and input in buffer plus 1
 N = len(y_train1)   #total number of output points in traininig data set
 print("Number of data points is " + str(N))
@@ -127,8 +129,6 @@ plt.ylabel('Y train')
 plt.title('Training data(many dimensions overlaped)')
 plt.figure()
 
-
-
 #########  Finding parameters n ,m and d ######################
 if (0):
     best_r2 = 0
@@ -151,18 +151,180 @@ if (0):
     print("Best parameters-> n=" + str(n) + " ,m= " + str(m) + " ,d=" + str(d))
     print("Simple linear regression r2= " +str(best_r2))
 
-
-
-
+####  n , m d, parameters were chosen
 X_train , y_train , p = trim_for_regressor(n ,m ,d ,y_train1,u_train)
-beta , r2 = linear_regression(X_train, y_train)
+
+##############      Cross validation for simple regression   #######################
+if(0):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        
+        print("Lengthy calculations for simple linear regression.")
+        # Different values of k for k-fold cross-validation
+        ks_lin_cv = np.linspace(2, 50, 49)
+        best_r2s_lin_cv = []
+        
+        for k in ks_lin_cv:
+            if k % 5 == 0:
+                print("Evaluating k = " + str(int(k)))
+            
+            # Initialize the simple linear regression model
+            lin_reg = LinearRegression()
+            
+            # Perform k-fold cross-validation and store the average R² score
+            r2_scores = cross_val_score(lin_reg, X_train, y_train, cv=int(k), scoring='r2')
+            best_r2s_lin_cv.append(np.mean(r2_scores))
+        
+        # Plot the results
+        plt.plot(ks_lin_cv, best_r2s_lin_cv, color='blue')
+        plt.xlabel('Number of data partitions (k)')
+        plt.ylabel('Average r2 score')
+        plt.title('Finding best number of partitions for linear regression cross-validation')
+        plt.figure()
+
+'''
+##########################################################
+##########           Ridge            ####################
+##########################################################
+rdg_alphas = []
+rdg_scores = []
+rdg_betas  = []
+alpha_values = np.logspace(-4,0.5,10)
+
+#checking adequate range for alpha
+if(1):
+    alpha_values = np.logspace(-4,7,1000)
+    for a in alpha_values:
+        rdg_alphas.append(a)
+        rdg = Ridge(alpha = a)
+        rdg.fit(X_train,y_train)
+        rdg_scores.append( rdg.score(X_train,y_train) )
+        rdg_betas.append(rdg.coef_)
+
+    plt.scatter(rdg_alphas,[b[0] for b in rdg_betas], color='blue',s = 1)
+    plt.scatter(rdg_alphas,[b[1] for b in rdg_betas], color='red',s = 1)
+    plt.scatter(rdg_alphas,[b[2] for b in rdg_betas], color='green',s = 1)
+    plt.scatter(rdg_alphas,[b[3] for b in rdg_betas], color='orange', s = 1)
+    plt.scatter(rdg_alphas,[b[4] for b in rdg_betas], color='purple',s = 1)
+    plt.xlabel('ridge_alphas')
+    plt.ylabel('Ridge coefficients')
+    plt.title('Ridge coefficients')
+    plt.xscale("symlog")
+    plt.yscale("symlog")
+    plt.figure()
+
+
+# find best ridge, need alpha and k partitions
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")  # Suppress all warnings
+    if (0):
+        alpha_values = np.logspace(-4,7,10)
+        print("Lengthy calculations for ridge.")
+        ks_rdg_cv = np.linspace(2,10,9)
+        best_r2s_rdg_cv = []
+        for k in ks_rdg_cv:
+            if k % 5 == 0:
+                print("Evaluating k = " + str(k))
+            rdg = Ridge()
+            rdg_cv = GridSearchCV(rdg, param_grid={'alpha': alpha_values}, cv= int(k), scoring='r2')
+            rdg_cv.fit(X_train, y_train)
+            best_r2s_rdg_cv.append(rdg_cv.best_score_)
+            k += 1
+        plt.plot(ks_rdg_cv, best_r2s_rdg_cv, color='blue')
+        plt.xlabel('Number of data partitions')
+        plt.ylabel('Best r² found for various ridge alphas')
+        plt.title('Finding best number of partitions for ridge cross validation')
+        plt.figure()
+
+#final ridge model, best k = 7!!!!!!!!!
+rdg = Ridge()
+best_rdg = rdg
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")  # Suppress all warnings
+    print("Finding best ridge")
+    rdg_cv = GridSearchCV(rdg, param_grid={'alpha': alpha_values}, cv= 7, scoring='r2')
+    rdg_cv.fit(X_train, y_train)
+    best_rdg = rdg_cv.best_estimator_
+
+'''
+
+
+##########################################################
+##########           Lasso            ####################
+##########################################################
+#see how the coefficients evolve
+lss_alphas = []
+lss_scores = []
+lss_betas  = []
+alpha_values = np.logspace(-10,-2,10)
+
+if(1):
+    alpha_values = np.logspace(-10,5,1000)
+    for a in alpha_values:
+        lss_alphas.append(a)
+        lss = Lasso(alpha = a)
+        lss.fit(X_train,y_train)
+        lss_scores.append( lss.score(X_train,y_train) )
+        lss_betas.append(abs(lss.coef_))
+
+    plt.scatter(lss_alphas,[b[0] for b in lss_betas], color='blue',s = 1)
+    plt.scatter(lss_alphas,[b[1] for b in lss_betas], color='red',s = 1)
+    plt.scatter(lss_alphas,[b[2] for b in lss_betas], color='green',s = 1)  #green is the weakest link
+    plt.scatter(lss_alphas,[b[3] for b in lss_betas], color='orange', s = 1)
+    plt.scatter(lss_alphas,[b[4] for b in lss_betas], color='purple',s = 1)
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.xlabel('lasso_alphas')
+    plt.ylabel('Lasso coeficients')
+    plt.title('Lasso coefficients')
+    plt.figure()
+
+#best is k = 18
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")  # Suppress all warnings
+    if (0):
+        # checking the best number of partitions, k
+        print("Lengthy calculations for lasso.")
+        ks_lss_cv = np.linspace(2,10,9)
+        best_r2s_lss_cv = []
+        for k in ks_lss_cv:
+            if k % 5 == 0:
+                print("Evaluating k = " + str(k))
+            lss = Lasso()
+            lss_cv = GridSearchCV(lss, param_grid={'alpha': alpha_values}, cv= int(k), scoring='r2')
+            lss_cv.fit(X_train, y_train)
+            best_r2s_lss_cv.append(lss_cv.best_score_)
+            k += 1
+        plt.plot(ks_lss_cv, best_r2s_lss_cv, color='blue')
+        plt.xlabel('Number of data partitions')
+        plt.ylabel('Best r² found for various lasso alphas')
+        plt.title('Finding best number of partitions for lasso cross validation')
+        plt.figure()
+
+#final lasso model best k=7!!!!!!!!!!!!!!!
+lss = Lasso()
+best_lss = Lasso()
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")  # Suppress all warnings
+    print("Finding best lasso.")
+    alpha_values = np.logspace(-10,-2,10)
+    lss_cv = GridSearchCV(lss, param_grid={'alpha': alpha_values}, cv= 7, scoring='r2')
+    lss_cv.fit(X_train, y_train)
+    best_lss = lss_cv.best_estimator_
+##########################################################################################
+
+
 
 #############    function to get predictions(non normalized)  #############################
-
+beta , r2 = linear_regression(X_train , y_train)
 def prediction(X):
 
     #apply simple linear model
-    y = np.matmul(X,beta)
+    #y = np.matmul(X,beta)
+    #apply ridge regression model(cross validated)
+    #y = best_rdg.predict(X)
+    #apply lasso regression model(cross validated)
+    y = best_lss.predict(X)
 
     return y
 
@@ -170,10 +332,18 @@ def prediction(X):
 y_train_prediction = prediction(X_train)
 r2_train = 1- (np.sum((y_train_prediction-y_train)**2))/(np.sum((y_train-np.mean(y_train))**2))
 print("r2 for train is " +str(r2_train))
-plt.scatter(y_train, prediction(X_train), color='blue',s = 1)
+plt.scatter(y_train, y_train_prediction, color='blue',s = 1)
 plt.xlabel('Y_train')
-plt.ylabel('Y_train_predicted(non normalised)')
+plt.ylabel('Y_train_predicted')
+plt.title('Training Data Prediction vs True')
+plt.figure()
+
+plt.plot(y_train, color='blue',label="Original")
+plt.plot(y_train_prediction, color = 'red',label= "Prediction")
+plt.xlabel('Index')
+plt.ylabel('Signal')
 plt.title('Training Data Prediction')
+plt.legend()
 plt.figure()
 
 ### plotting error on training histogram non normalised
