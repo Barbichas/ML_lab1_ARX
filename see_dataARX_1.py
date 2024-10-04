@@ -6,11 +6,13 @@ import matplotlib.pyplot as plt
 import numpy as np   #manipulating numpy arrays
 import pandas as pd  #statistics fucntions
 import seaborn as sns
+from sklearn.metrics import r2_score
 from sklearn.model_selection import cross_val_score  #cross validation
 from sklearn.linear_model import LinearRegression
 from sklearn.linear_model import Ridge    #ridge regression
 from sklearn.linear_model import Lasso    #lasso regression
 from sklearn.model_selection import GridSearchCV, KFold   #cross validation search
+from sklearn.model_selection import TimeSeriesSplit
 import warnings #for the heavy cross validation optimization computations
         
 
@@ -155,34 +157,42 @@ if (0):
 X_train , y_train , p = trim_for_regressor(n ,m ,d ,y_train1,u_train)
 
 ##############      Cross validation for simple regression   #######################
-if(0):
+if(1):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         
         print("Lengthy calculations for simple linear regression.")
         # Different values of k for k-fold cross-validation
-        ks_lin_cv = np.linspace(2, 50, 49)
-        best_r2s_lin_cv = []
+        ks_lin_cv = np.linspace(2, 81, 80)
+        avr_r2s_lin_cv = []
         
         for k in ks_lin_cv:
-            if k % 5 == 0:
-                print("Evaluating k = " + str(int(k)))
-            
-            # Initialize the simple linear regression model
-            lin_reg = LinearRegression()
-            
-            # Perform k-fold cross-validation and store the average R² score
-            r2_scores = cross_val_score(lin_reg, X_train, y_train, cv=int(k), scoring='r2')
-            best_r2s_lin_cv.append(np.mean(r2_scores))
+            lin_cv = TimeSeriesSplit(n_splits = int(k))
+            all_r2s = []
+            for train_index, test_index in lin_cv.split(X_train):
+                
+                X_train_fold, X_test_fold = X_train[train_index], X_train[test_index]
+                y_train_fold, y_test_fold = y_train[train_index], y_train[test_index]
+                #print("Shape for the cross validation-> X:" + str(X_train_fold.shape) + " y:" +str(y_train_fold.shape))
+                
+                lin = LinearRegression()
+                lin.fit(X_train_fold, y_train_fold)
+                y_pred = lin.predict(X_test_fold)
+                all_r2s.append(r2_score(y_pred, y_test_fold))
+
+            avr_r2s_lin_cv.append( np.max(all_r2s) )
+            all_r2s = []
+
         
         # Plot the results
-        plt.plot(ks_lin_cv, best_r2s_lin_cv, color='blue')
+        plt.plot(ks_lin_cv, avr_r2s_lin_cv, color='blue')
         plt.xlabel('Number of data partitions (k)')
         plt.ylabel('Average r2 score')
         plt.title('Finding best number of partitions for linear regression cross-validation')
         plt.figure()
 
-'''
+
+
 ##########################################################
 ##########           Ridge            ####################
 ##########################################################
@@ -192,7 +202,7 @@ rdg_betas  = []
 alpha_values = np.logspace(-4,0.5,10)
 
 #checking adequate range for alpha
-if(1):
+if(0):
     alpha_values = np.logspace(-4,7,1000)
     for a in alpha_values:
         rdg_alphas.append(a)
@@ -218,18 +228,39 @@ if(1):
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")  # Suppress all warnings
     if (0):
-        alpha_values = np.logspace(-4,7,10)
+        alpha_values = np.logspace(-4, 7, 20)
         print("Lengthy calculations for ridge.")
-        ks_rdg_cv = np.linspace(2,10,9)
+        ks_rdg_cv = np.linspace(2, 81, 80, dtype=int)  # ensure `k` values are integers
         best_r2s_rdg_cv = []
+
         for k in ks_rdg_cv:
-            if k % 5 == 0:
-                print("Evaluating k = " + str(k))
-            rdg = Ridge()
-            rdg_cv = GridSearchCV(rdg, param_grid={'alpha': alpha_values}, cv= int(k), scoring='r2')
-            rdg_cv.fit(X_train, y_train)
-            best_r2s_rdg_cv.append(rdg_cv.best_score_)
-            k += 1
+            print("Checking k partitions ="+str(k))
+            rdg_cv = TimeSeriesSplit(n_splits=k)
+            best_alpha = 0
+            best_avg_r2 = -np.inf  # To track the best R² score
+
+            for alphai in alpha_values:
+                all_r2s = []
+            # Perform cross-validation with current k and alpha
+                for train_index, test_index in rdg_cv.split(X_train):
+                    X_train_fold, X_test_fold = X_train[train_index], X_train[test_index]
+                    y_train_fold, y_test_fold = y_train[train_index], y_train[test_index]
+            
+                    rdg = Ridge(alpha=alphai)
+                    rdg.fit(X_train_fold, y_train_fold)
+                    y_pred = rdg.predict(X_test_fold)
+            
+                    r2 = r2_score(y_test_fold, y_pred)
+                    all_r2s.append(r2)
+                # Calculate the average R² for this alpha
+                avg_r2 = np.mean(all_r2s)
+                # Update the best alpha if this one is better
+                if avg_r2 > best_avg_r2:
+                    best_avg_r2 = avg_r2
+                    best_alpha = alphai
+
+            best_r2s_rdg_cv.append(best_alpha)
+        
         plt.plot(ks_rdg_cv, best_r2s_rdg_cv, color='blue')
         plt.xlabel('Number of data partitions')
         plt.ylabel('Best r² found for various ridge alphas')
@@ -246,8 +277,8 @@ with warnings.catch_warnings():
     rdg_cv.fit(X_train, y_train)
     best_rdg = rdg_cv.best_estimator_
 
-'''
 
+'''
 
 ##########################################################
 ##########           Lasso            ####################
@@ -313,18 +344,18 @@ with warnings.catch_warnings():
     best_lss = lss_cv.best_estimator_
 ##########################################################################################
 
-
+'''
 
 #############    function to get predictions(non normalized)  #############################
 beta , r2 = linear_regression(X_train , y_train)
 def prediction(X):
 
     #apply simple linear model
-    #y = np.matmul(X,beta)
+    y = np.matmul(X,beta)
     #apply ridge regression model(cross validated)
     #y = best_rdg.predict(X)
     #apply lasso regression model(cross validated)
-    y = best_lss.predict(X)
+    #y = best_lss.predict(X)
 
     return y
 
