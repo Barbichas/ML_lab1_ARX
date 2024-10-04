@@ -163,10 +163,12 @@ if(1):
         
         print("Lengthy calculations for simple linear regression.")
         # Different values of k for k-fold cross-validation
-        ks_lin_cv = np.linspace(2, 81, 80)
+        ks_lin_cv = np.linspace(2, 35, 36)
         avr_r2s_lin_cv = []
         
         for k in ks_lin_cv:
+            if(int(k)%20==0):
+                print("Linear regression cross validation: " + str(k))
             lin_cv = TimeSeriesSplit(n_splits = int(k))
             all_r2s = []
             for train_index, test_index in lin_cv.split(X_train):
@@ -227,20 +229,20 @@ if(0):
 # find best ridge, need alpha and k partitions
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")  # Suppress all warnings
-    if (0):
+    if (1):
         alpha_values = np.logspace(-4, 7, 20)
         print("Lengthy calculations for ridge.")
-        ks_rdg_cv = np.linspace(2, 81, 80, dtype=int)  # ensure `k` values are integers
+        ks_rdg_cv = np.linspace(2, 35, 36, dtype=int)  # ensure `k` values are integers
         best_r2s_rdg_cv = []
 
         for k in ks_rdg_cv:
-            print("Checking k partitions ="+str(k))
+            print("Ridge Checking k partitions ="+str(k))
             rdg_cv = TimeSeriesSplit(n_splits=k)
             best_alpha = 0
             best_avg_r2 = -np.inf  # To track the best R² score
 
             for alphai in alpha_values:
-                all_r2s = []
+                all_r2s_per_alpha = []
             # Perform cross-validation with current k and alpha
                 for train_index, test_index in rdg_cv.split(X_train):
                     X_train_fold, X_test_fold = X_train[train_index], X_train[test_index]
@@ -251,15 +253,15 @@ with warnings.catch_warnings():
                     y_pred = rdg.predict(X_test_fold)
             
                     r2 = r2_score(y_test_fold, y_pred)
-                    all_r2s.append(r2)
+                    all_r2s_per_alpha.append(r2)
                 # Calculate the average R² for this alpha
-                avg_r2 = np.mean(all_r2s)
+                avg_r2 = np.mean(all_r2s_per_alpha)
                 # Update the best alpha if this one is better
                 if avg_r2 > best_avg_r2:
                     best_avg_r2 = avg_r2
                     best_alpha = alphai
 
-            best_r2s_rdg_cv.append(best_alpha)
+            best_r2s_rdg_cv.append(best_avg_r2)
         
         plt.plot(ks_rdg_cv, best_r2s_rdg_cv, color='blue')
         plt.xlabel('Number of data partitions')
@@ -278,7 +280,7 @@ with warnings.catch_warnings():
     best_rdg = rdg_cv.best_estimator_
 
 
-'''
+
 
 ##########################################################
 ##########           Lasso            ####################
@@ -289,14 +291,16 @@ lss_scores = []
 lss_betas  = []
 alpha_values = np.logspace(-10,-2,10)
 
-if(1):
-    alpha_values = np.logspace(-10,5,1000)
-    for a in alpha_values:
-        lss_alphas.append(a)
-        lss = Lasso(alpha = a)
-        lss.fit(X_train,y_train)
-        lss_scores.append( lss.score(X_train,y_train) )
-        lss_betas.append(abs(lss.coef_))
+if(0):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # Suppress all warnings
+        alpha_values = np.logspace(-10,5,1000)
+        for a in alpha_values:
+            lss_alphas.append(a)
+            lss = Lasso(alpha = a)
+            lss.fit(X_train,y_train)
+            lss_scores.append( lss.score(X_train,y_train) )
+            lss_betas.append(abs(lss.coef_))
 
     plt.scatter(lss_alphas,[b[0] for b in lss_betas], color='blue',s = 1)
     plt.scatter(lss_alphas,[b[1] for b in lss_betas], color='red',s = 1)
@@ -316,16 +320,38 @@ with warnings.catch_warnings():
     if (0):
         # checking the best number of partitions, k
         print("Lengthy calculations for lasso.")
-        ks_lss_cv = np.linspace(2,10,9)
+        alpha_values = np.logspace(-4, 7, 10)
+        ks_lss_cv = np.linspace(2, 35, 36, dtype=int)  # ensure `k` values are integers
         best_r2s_lss_cv = []
+
         for k in ks_lss_cv:
-            if k % 5 == 0:
-                print("Evaluating k = " + str(k))
-            lss = Lasso()
-            lss_cv = GridSearchCV(lss, param_grid={'alpha': alpha_values}, cv= int(k), scoring='r2')
-            lss_cv.fit(X_train, y_train)
-            best_r2s_lss_cv.append(lss_cv.best_score_)
-            k += 1
+            print("Lasso Checking k partitions = "+str(k))
+            lss_cv = TimeSeriesSplit(n_splits=k)
+            best_alpha = 0
+            best_avg_r2 = -np.inf  # To track the best R² score
+
+            for alphai in alpha_values:
+                all_r2s_per_alpha = []
+                # Perform cross-validation with current k and alpha
+                for train_index, test_index in lss_cv.split(X_train):
+                    X_train_fold, X_test_fold = X_train[train_index], X_train[test_index]
+                    y_train_fold, y_test_fold = y_train[train_index], y_train[test_index]
+            
+                    lss = Lasso(alpha=alphai)
+                    lss.fit(X_train_fold, y_train_fold)
+                    y_pred = lss.predict(X_test_fold)
+            
+                    r2 = r2_score(y_test_fold, y_pred)
+                    all_r2s_per_alpha.append(r2)
+                # Calculate the average R² for this alpha
+                avg_r2 = np.mean(all_r2s_per_alpha)
+                # Update the best alpha if this one is better
+                if avg_r2 > best_avg_r2:
+                    best_avg_r2 = avg_r2
+                    best_alpha = alphai
+
+            best_r2s_lss_cv.append(best_avg_r2)
+
         plt.plot(ks_lss_cv, best_r2s_lss_cv, color='blue')
         plt.xlabel('Number of data partitions')
         plt.ylabel('Best r² found for various lasso alphas')
@@ -343,8 +369,18 @@ with warnings.catch_warnings():
     lss_cv.fit(X_train, y_train)
     best_lss = lss_cv.best_estimator_
 ##########################################################################################
+####  Plotting cross validation of 3 models    ###########################################
+if(0):
+    plt.plot(ks_lin_cv, avr_r2s_lin_cv, color='blue',label = "Linear")
+    plt.plot(ks_rdg_cv, best_r2s_rdg_cv, color='green',label = "Ridge")
+    plt.plot(ks_lss_cv, best_r2s_lss_cv, color='red', label = "Lasso")
+    plt.xlabel('Number of data partitions')
+    plt.ylabel('Best r² found for that partition')
+    plt.title('Choosing best model with cross validation')
+    plt.legend()
+    plt.figure()
 
-'''
+
 
 #############    function to get predictions(non normalized)  #############################
 beta , r2 = linear_regression(X_train , y_train)
@@ -421,5 +457,9 @@ plt.ylabel('Signal')
 plt.title('Testing Data Predicted Spectrum')
 plt.legend()
 
+####  storing result   #########
+y_pred = y_test_prediction[len(y_test_prediction)-400:len(y_test_prediction)]
+np.save('y_pred', y_pred)
 
+### showing plots   ####
 plt.show()
