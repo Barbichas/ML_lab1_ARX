@@ -157,7 +157,7 @@ if (0):
 X_train , y_train , p = trim_for_regressor(n ,m ,d ,y_train1,u_train)
 
 ##############      Cross validation for simple regression   #######################
-if(1):
+if(0):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         
@@ -229,7 +229,7 @@ if(0):
 # find best ridge, need alpha and k partitions
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")  # Suppress all warnings
-    if (1):
+    if (0):
         alpha_values = np.logspace(-4, 7, 20)
         print("Lengthy calculations for ridge.")
         ks_rdg_cv = np.linspace(2, 35, 36, dtype=int)  # ensure `k` values are integers
@@ -279,6 +279,15 @@ with warnings.catch_warnings():
     rdg_cv.fit(X_train, y_train)
     best_rdg = rdg_cv.best_estimator_
 
+### Ridge errors histogram ##
+Errors_rdg = y_train - best_rdg.predict(X_train)
+counts, bin_edges = np.histogram(Errors_rdg, bins=100)
+bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2  # Calculate bin centers
+plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], color='blue')
+plt.xlabel('Error size')
+plt.ylabel('Error count')
+plt.title('Error histogram ridge regression on training dataset')
+plt.figure()
 
 
 
@@ -291,6 +300,7 @@ lss_scores = []
 lss_betas  = []
 alpha_values = np.logspace(-10,-2,10)
 
+##observe regularization
 if(0):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")  # Suppress all warnings
@@ -314,7 +324,7 @@ if(0):
     plt.title('Lasso coefficients')
     plt.figure()
 
-#best is k = 18
+##cross validation
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")  # Suppress all warnings
     if (0):
@@ -368,8 +378,22 @@ with warnings.catch_warnings():
     lss_cv = GridSearchCV(lss, param_grid={'alpha': alpha_values}, cv= 7, scoring='r2')
     lss_cv.fit(X_train, y_train)
     best_lss = lss_cv.best_estimator_
-##########################################################################################
-####  Plotting cross validation of 3 models    ###########################################
+
+### Lasso errors histogram ##
+Errors_lss = y_train - best_lss.predict(X_train)
+counts, bin_edges = np.histogram(Errors_lss, bins=100)
+bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2  # Calculate bin centers
+plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], color='blue')
+plt.xlabel('Error size')
+plt.ylabel('Error count')
+plt.title('Error histogram lasso regression on training dataset')
+plt.figure()
+
+
+#####################################################################################################
+####  Plotting cross validation of 3 models               ###########################################
+##  Against expectations, simple linear model holds for diferent k-partitions            ############
+##  suggesting good performance beyond testing data, the same does not happen for ridge or lasso  ###
 if(0):
     plt.plot(ks_lin_cv, avr_r2s_lin_cv, color='blue',label = "Linear")
     plt.plot(ks_rdg_cv, best_r2s_rdg_cv, color='green',label = "Ridge")
@@ -421,6 +445,27 @@ plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], color='blue')
 plt.xlabel('Error size')
 plt.ylabel('Error count')
 plt.title('Error histogram linear regression on training dataset')
+plt.figure()
+
+###  Error histogram 3 models ##
+Errors = y_train - y_train_prediction
+print("Mean squarred error LINEAR = " + str(np.mean(np.square(Errors))))
+counts, bin_edges = np.histogram(Errors, bins=100)
+bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2  # Calculate bin centers
+plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], color='blue',label="Linear")
+Errors_rdg = y_train - best_rdg.predict(X_train)
+print("Mean squarred error RIDGE = " + str(np.mean(np.square(Errors_rdg))))
+counts, bin_edges = np.histogram(Errors_rdg, bins=100)
+bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2  # Calculate bin centers
+plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], color='green',label="Ridge")
+Errors_lss = y_train - best_lss.predict(X_train)
+print("Mean squarred error LASSO = " + str(np.mean(np.square(Errors_lss))))
+counts, bin_edges = np.histogram(Errors_lss, bins=100)
+bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2  # Calculate bin centers
+plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], color='red',label="Lasso")
+plt.xlabel('Error size')
+plt.ylabel('Error count')
+plt.title('Error histogram lasso regression on training dataset')
 plt.figure()
 
 ###################        producing prediction iterating with regressor   ###########
